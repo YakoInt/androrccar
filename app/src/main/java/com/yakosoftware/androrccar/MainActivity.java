@@ -28,33 +28,35 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class MainActivity extends AppCompatActivity {
 
 
-    // direction constants
-    final int IR = -1; //irrelevant
-    final int S = 0;
-    final int F = 1;
-    final int B = 2;
-    final int L = 3;
-    final int Ri = 4;
+    // Yön sabitleri
+    final int IR = -1; //oldState'in hiçbirşey olmadığını belirtmek için tanımladığımız sabit
+    final int S = 0;//Stop
+    final int F = 1;//forward-ileri
+    final int B = 2;//backward-geri
+    final int L = 3;//left-sol
+    final int Ri = 4;//right-sağ
 
-    private static final boolean D = true;
 
-    // Blocking queue for passing messages to the bluetooth terminal
+    // Bluetooth terminaline verileri göndermek için tanımladığımız BlockingQueue yapısı
+    //Bu queue yapısını consumer-producer yapısıyla kullanıp bluetooth terminali yani
+    //seri port işlemleri ile UI işlemlerini farklı thread de yapmak için kullanıyoruz zira
+    // Blockingqueue yapısı Multithreading desteklemektedir bu yapı ile UI thread'i producer
+    //ve bluetooth thread consumer olacak şekilde bir sistem kuruyoruz
     BlockingQueue<String> queue = new LinkedBlockingQueue<String>();
 
-    private boolean raspberryOn = false;
-    private boolean lightsIsOn = false;
+    private boolean lightsIsOn = false;//Işıklar açık/kapalı
 
-    final String TAG = "direction";
 
-    /* Current State- the first element is either 0- Still, 1- Forward, 2-Backward
-     * the second element is 0- Still, 1- Left, 2- Right
+    /* 2 uzunluklu int dizisinin ilk elemanı 0-> Still Stay, 1-> Forward, 2->Backward sabitlerini tutacak
+     * yani ileri geri ve durgun durumlarını;
+     * ikinci eleman ise 0-> Still Stay, 1-> Left, 2->Right yani sağ,sol ve durgun sabitlerini tutacak.
      */
     private int[] curState = new int[2];
 
-    private BluetoothAdapter mBluetoothAdapter = null;
-    private BluetoothDevice chosenDevice = null;
+    private BluetoothAdapter mBluetoothAdapter = null;//Bluetooth adaptörü yani android cihazın bluetooth modülünü yönetmek için kullandığımız değişken
+    private BluetoothDevice chosenDevice = null;//Bluetooth adapter'den seçilen bluetooth cihazını atayacağımız değişken
 
-    //Initiate elements
+    //UI bileşenlerini tanımlıyoruz
     private ImageButton f,b,l,r,btnHorn,btnSwitchLights;
     private Button retry;
     private Spinner pairedDev;
@@ -62,40 +64,37 @@ public class MainActivity extends AppCompatActivity {
     private String speedStr = "4";
     private RadioButton btnLow,btnMid,btnHigh;
 
-    //The bluetooth worker thread
+    //BluetoothTerminal sınıfının yani seri port işlemlerinin gerçekleşeceği threadi tanımladık
     Thread mRemoteService = null;
     BluetoothTerminal bt;
 
-    boolean disconnect = false;
+    boolean disconnect = false;//bluetooth bağlı mı
 
     @Override
     public void onStart() {
         super.onStart();
-        Log.e(TAG, "++ ON START ++");
 
-        // If BT is not on, request that it be enabled.
-        // setupChat() will then be called during onActivityResult
+        // Cihazın bluetooth'u aktif değilse aktifleştirmek için bir istek gönderiyoruz
         if (!mBluetoothAdapter.isEnabled()) {
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableIntent, 2);
             // Otherwise, setup the chat session
         }
-        while (!mBluetoothAdapter.isEnabled()) {
-        }
+        // setupChat() metodu activity result'ı gelene kadar ya da bt aktif olana kadar çalışmaz
+        while (!mBluetoothAdapter.isEnabled());
+
         setupChat();
     }
 
     @Override
     public synchronized void onPause() {
         super.onPause();
-        disconnect = true;
-        if (D) Log.e(TAG, "- ON PAUSE -");
+        disconnect = true;//uygulama pause edilirse yani durdurulursa veya arkaplanda askıya alınırsa disconnect edilir
     }
 
     @Override
     public synchronized void onResume() {
-        super.onResume();
-        if (D) Log.e(TAG, "+ ON RESUME +");
+        super.onResume();//onResume'da super class'ın işlemleri devam eder
 
     }
 
@@ -104,16 +103,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-        if (D) Log.e(TAG, "++ ON CREATE ++");
 
-        // Initiate still state
+        //curState'in başlangıçtaki elemanlarının değerlerini S yani durgun vaziyete alıyoruz
         curState[0] = S;
         curState[1] = S;
 
-        // Get local Bluetooth adapter
+        // Cihazın bluetooth servisini yani adaptörünü mBluetoothAdapter'a çekiyoruz
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-        // If the adapter is null, then Bluetooth is not supported
+        // Eğer mBluetoothAdapter null ise cihaz bluetooth desteklemiyor bu nedenle bir Toast bastırarak bunu kullanıcıya belirtiyoruz
         if (mBluetoothAdapter == null) {
             Toast.makeText(this, "Bluetooth is not available", Toast.LENGTH_LONG).show();
             finish();
@@ -126,15 +124,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        // Stop the Bluetooth remote control services
+        // herhangi bir şekilde uygulama kullanıcı tarafından ya da sistem tarafından kapatılırsa bt threadi stop ediliyor
         if (mRemoteService != null) mRemoteService.stop();
-        if(D) Log.e(TAG, "--- ON DESTROY ---");
     }
 
     private void setupChat() {
-        // Create a bluetooth threadthread = new Thread(bt);
+        // Bluetooth terminal threadi mRemoteService değişkeninde oluşturuluyor
         mRemoteService = new Thread(bt);
 
+        //UI bileşenleri ilgili değişkenlere atanıyor
         t =  findViewById(R.id.text);
         f =  findViewById(R.id.imgF);
         b =  findViewById(R.id.imgB);
@@ -149,9 +147,12 @@ public class MainActivity extends AppCompatActivity {
         btnSwitchLights = findViewById(R.id.lightSwitch);
         btnHorn = findViewById(R.id.horn);
 
-        // Populate paired devices
+        // Set yapısına cihazda eşleşmiş olan bt cihazları atanıyor
         final Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
         final List<String> devicesList = new ArrayList<>();
+        //eşleşmiş cihazlardan HC-06 yani bizim aracımızın bt ismi ile eşleşen cihaz varsa
+        //spinnerda ilk sıraya gelmesi için deviceslistte ilk sıraya atanıyor
+        //ve bu şekilde liste dolduruluyor
         for(BluetoothDevice device : pairedDevices) {
             if(device.getName().equals("HC-06")) {
                 devicesList.add(0, device.getName());
@@ -164,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
                 this, android.R.layout.simple_spinner_item, devicesList);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         pairedDev.setAdapter(adapter);
-
+        //pairedDev spinner'ından seçilen cihaz chosenDevice(BluetoothDevice) değişkenine atanıyor
         pairedDev.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
@@ -172,7 +173,6 @@ public class MainActivity extends AppCompatActivity {
                 for(BluetoothDevice device : pairedDevices) {
                     if(device.getName().equals(devicesList.get(position))) {
                         chosenDevice = device;
-                        Log.e(TAG, device.getName());
                     }
                 }
             }
@@ -184,24 +184,26 @@ public class MainActivity extends AppCompatActivity {
 
         });
 
-
+        //Hız ayarlaması için butonların listenerlarında işlemler yapılıyor
         btnLow.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                //eğer ilgili radiobutton seçili ise
                     if(isChecked){
-                        speedStr = "2";
-                        changeSpeed(speedStr);
+                        speedStr = "2";//hız low yani 2 olarak atanıyor
+                        changeSpeed();//changespeed methoduna gönderiliyor
 
                     }
 
             }
         });
+        //diğer iki radiobutton için de btnLow'da yapılan işlemlerin benzeri gerçekleştiriliyor
         btnMid.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if(isChecked){
                     speedStr = "3";
-                    changeSpeed(speedStr);
+                    changeSpeed();
                 }
 
             }
@@ -211,52 +213,56 @@ public class MainActivity extends AppCompatActivity {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if(isChecked){
                     speedStr = "4";
-                    changeSpeed(speedStr);
+                    changeSpeed();
                 }
 
             }
         });
-        //Listeners for the forward, backward, left and right buttons in that order
 
+        //Aracın korna çalabilmesi için gereken butonun listenerı tanımlanıyor
         btnHorn.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View arg0, MotionEvent event) {
-                if(event.getAction()==MotionEvent.ACTION_DOWN) {
-                    playHorn();
-                    btnHorn.setColorFilter(new LightingColorFilter(0xFFFFFFFF, 0xFFAA0000));
+                if(event.getAction()==MotionEvent.ACTION_DOWN) {//eğer butona basılıyorsa
+                    playHorn();//korna çalma methodu çağrılarak korna çalınıyor
+                    btnHorn.setColorFilter(new LightingColorFilter(0xFFFFFFFF, 0xFFAA0000));//butonun rengi değiştiriliyor
                 } else {
                     if(event.getAction()==MotionEvent.ACTION_UP) {
-                        playHorn();
-                        btnHorn.setColorFilter(null);
+                        playHorn();//parmak çekildiğinde tekrar aynı method çağrılarak seri porta korna ile ilgili state değeri gönderiliyor
+                        //ve kornanın kapanması sağlanıyor
+                        btnHorn.setColorFilter(null);//butonun rengi eski haline geliyor
                     }
                 }
                 return false;
             }
         });
+        //Aracın ışıklarını switch edebilmesi için gereken butonun listenerı tanımlanıyor
         btnSwitchLights.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View arg0, MotionEvent event) {
-                if(event.getAction()==MotionEvent.ACTION_DOWN) {
-                    lightsIsOn = !lightsIsOn;
-                    if(lightsIsOn)
-                    btnSwitchLights.setImageResource(R.drawable.lightofficon);
-                    else
-                        btnSwitchLights.setImageResource(R.drawable.lightonicon);
-                    switchLights();
+                if(event.getAction()==MotionEvent.ACTION_DOWN) {//eğer butona basılıyorsa
+                    lightsIsOn = !lightsIsOn;//lightsIsOn değişkeni not operatorü ile switch ediliyor
+                    if(lightsIsOn)//ışıklar açıldı ise
+                    btnSwitchLights.setImageResource(R.drawable.lightofficon);//ikon ışığı kapatacak şekilde değişiyor
+                    else//değilse
+                        btnSwitchLights.setImageResource(R.drawable.lightonicon);//ikon ışığı açacak şekilde değişiyor
+                    switchLights();//ışığı switch etmek için gereken method çağrılıyor
                 }
                 return false;
             }
         });
+        //İleri,geri, sağ ve sol yönlerini belirleyecek butonların listenerları tanımlanıyor
+
         f.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public boolean onTouch(View arg0, MotionEvent event) {
-                if(event.getAction()==MotionEvent.ACTION_DOWN) {
-                    handleCmd(F, IR);
-                    f.setColorFilter(new LightingColorFilter(0xFFFFFFFF, 0xFFAA0000));
+            public boolean onTouch(View arg0, MotionEvent event) {//Forward butonu listener'ı
+                if(event.getAction()==MotionEvent.ACTION_DOWN) {//butona basılıyorsa
+                    handleCmd(F, IR);//yeni state F yani ileri eski state ise irrelevant olarak atanıyor
+                    f.setColorFilter(new LightingColorFilter(0xFFFFFFFF, 0xFFAA0000));//buton rengi değişiyor
                 } else {
-                    if(event.getAction()==MotionEvent.ACTION_UP) {
-                        handleCmd(S, F);
-                        f.setColorFilter(null);
+                    if(event.getAction()==MotionEvent.ACTION_UP) {//butondan parmak kalktıysa
+                        handleCmd(S, F);//yeni state durgun yani S eski state ise F olarak atanıyor
+                        f.setColorFilter(null);//buton rengi eski haline dönüyor
                     }
                 }
                 return false;
@@ -265,20 +271,20 @@ public class MainActivity extends AppCompatActivity {
 
         b.setOnTouchListener(new View.OnTouchListener() {
             @Override
-            public boolean onTouch(View arg0, MotionEvent event) {
-                if(event.getAction()==MotionEvent.ACTION_DOWN) {
-                    handleCmd(B, IR);
+            public boolean onTouch(View arg0, MotionEvent event) {//backward butonu listener'ı
+                if(event.getAction()==MotionEvent.ACTION_DOWN) {//butona basılıyorsa
+                    handleCmd(B, IR);//yeni state B yani geri eski state ise irrelevant olarak atanıyor
                     b.setColorFilter(new LightingColorFilter(0xFFFFFFFF, 0xFFAA0000));
                 } else {
                     if(event.getAction()==MotionEvent.ACTION_UP) {
-                        handleCmd(S, B);
+                        handleCmd(S, B);//yeni state durgun yani S eski state ise B olarak atanıyor
                         b.setColorFilter(null);
                     }
                 }
                 return false;
             }
         });
-
+        //İlk iki F ve B butonları için yaptığımız açıklamalar aşağıdaki left right listener'ları içinde geçerlidir
         l.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View arg0, MotionEvent event) {
@@ -312,143 +318,144 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-
+//Connect butonunun listener'ı tanımlanıyor
         retry.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-            if (!bt.isConnected()) {
-                t.setText("Retrying...");
-                disconnect = false;
-                bt.setMmDevice(chosenDevice);
-                mRemoteService = new Thread(bt);
-                mRemoteService.start();
+            if (!bt.isConnected()) {//eper bağlantı sağlanamamışsa
+                t.setText("Retrying...");//ekrandaki textimiz bağlanana kadar Retrying olarak değiştiriliyor
+                // bağlandığında bt thread'inde Conected olarak güncellenecek
+                disconnect = false;//bağlanırken disconnected false ediliyor
+                bt.setMmDevice(chosenDevice);//seçili cihaz bt'ye BluetoothDevice olarak set ediliyor
+                mRemoteService = new Thread(bt);//Thread'e yeni cihazla tekrar atama yapılıyor
+                mRemoteService.start();//bt threadi başlatılıyor
             } else {
-                t.setText("Already connected");
+                t.setText("Already connected");//şayet bağlı ise zaten bağlı şeklinde text set ediliyor
             }
             }
         });
-        mRemoteService.start();
-        raspberryOn = true;
+        mRemoteService.start();//setup chat'in başlangıcında atanan thread başlatılıyor
     }
 
-    void changeSpeed(String speedStr)
+    void changeSpeed()//hızı değiştiren method
     {
-            handleCmd(curState[0],IR);
+            handleCmd(curState[0],IR);//hız değiştikten sonra arduino tarafındaki state'e tekrar veri göndermemiz gerektiğinden
+            //handleCmd current state ile tekrar çağrılıyor
 
 
     }
-    void playHorn(){
+    void playHorn(){//korna çalan method
 
         try {
-            queue.put("V");
+            queue.put("V");//kuyruğa V keywordü eklenerek korna çalacak state arduinoya gönderiliyor
+            //hata yönetimi yapmamızın sebebi kuyruğun multithread çalışmasından dolayı threadin kesilmesi durumuna karşı
+            //fırlatılacak Interrupt exception'u handle etmek
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
 
-    void switchLights(){
+    void switchLights(){//ışıkları switch eden method
 
         try {
-            queue.put("W");
+            queue.put("W");//kuyruğa W keywordü eklenerek ışıkları switch edecek state arduinoya gönderiliyor
+            //hata yönetimi yapmamızın sebebi kuyruğun multithread çalışmasından dolayı threadin kesilmesi durumuna karşı
+            //fırlatılacak Interrupt exception'u handle etmek
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
-    /**
-     * Handler for the commands.
-     * @param newState- newState
-     * @param oldState- oldState
-     */
 
+    //State'leri yönettiğimiz method
     void handleCmd(int newState, int oldState) {
 
-        //Set new state values
+        //Gelen newState'i switch içerisinde kontrol ediyoruz
         switch (newState) {
-            case S:
-                switch (oldState) {
+            case S://gelen newState durdurma komutu ise
+                switch (oldState) {//old state'i kontrol ederek
                     case F:
                     case B:
-                        curState[0] = newState;
+                        curState[0] = newState;//ileri geri doğrultusunda ise curState'in 0. elemanına durdurma komutu veriyoruz
                         break;
                     case L:
                     case Ri:
-                        curState[1] = newState;
+                        curState[1] = newState;//Sağ sol doğrultusunda ise curState'in 1. elemanına durdurma komutu veriyoruz
                         break;
                 }
                 break;
             case F:
-            case B:
-                curState[0] = newState;
+            case B://Gelen komut F veya B ise yani ileri geri yönünde ise direkt olarak 0. elemana
+                curState[0] = newState;//newState'i atıyoruz
                 break;
             case L:
-            case Ri:
-                curState[1] = newState;
+            case Ri://Gelen komut L veya Ri ise yani Sağ Sol yönünde ise direkt olarak 1. elemana
+                curState[1] = newState;//newState'i atıyoruz
                 break;
         }
 
         try {
-            //Change text in the app and send the new direction to the bluetooth terminal
-            if(curState[0] == S) {
-                switch(curState[1]) {
-                    case S:
-                        t.setText("Staying Still");
-                        queue.put("S");
-                        Log.d(TAG, "still");
+            //Bu blokta curState atanan verileri artık BluetoothTerminaline gönderilmek üzere kuyruğa ekliyoruz
+            if(curState[0] == S) {//eğer ileri-geri doğrultusu durgunsa
+                switch(curState[1]) {//sağ sol rotasyonunu kontrol ediyoruz
+                    case S://eğer sağ sol da durgunsa
+                        t.setText("Staying Still");//ekrana şuan durduğunu belirten texti bastırıyoruz
+                        queue.put("S");//kuyruğa S put ediyoruz yani arduino'ya S, durdurma komutunu gönderiyoruz
                         break;
-                    case L:
-                        t.setText("Still Left");
-                        queue.put("L");
-                        Log.d(TAG, "still left");
+                    case L://eğer L yani sol geldiyse
+                        t.setText("Still Left");//ekrana sola doğru direction verildiğini bastırıyoruz
+                        queue.put("L");//kuyruğa L put ediyoruz yani arduino'ya L, direksiyonu sola döndürme komutu gönderiyoruz
                         break;
                     case Ri:
-                        t.setText("Still Right");
-                        queue.put("R");
-                        Log.d(TAG, "still right");
+                        t.setText("Still Right");//ekrana sağa doğru direction verildiğini bastırıyoruz
+                        queue.put("R");//kuyruğa R put ediyoruz yani arduino'ya R, direksiyonu sağa döndürme komutu gönderiyoruz
                         break;
                 }
             } else {
-                if (curState[0] == F) {
-                    switch(curState[1]) {
+                if (curState[0] == F) {//eğer curState ilk eleman ileri ise
+                    switch(curState[1]) {//sağ sol rotasyonunu kontrol ediyoruz
                         case S:
-                            t.setText("Moving Forward");
-                            queue.put(speedStr);
-                            queue.put("F");
-                            Log.d(TAG, "forward");
+                            t.setText("Moving Forward");//ekrana ileri gidildiğini bastırıyoruz.
+                            queue.put(speedStr);//ileri yönde bir hız olacağı için o anki hızımız ne seçildi ise onu da kuyruğa put ediyoruz
+                            queue.put("F");//kuyruğa F put ediyoruz yani arduino'ya F, ileri yönde motorları çalıştır komutu gönderiyoruz
                             break;
                         case L:
-                            t.setText("Forward Left");
-                            queue.put("G");
-                            Log.d(TAG, "forward left");
+                            t.setText("Forward Left");//ekrana ileri yönde sola gidildiğini bastırıyoruz.
+                            queue.put("G");;//kuyruğa G put ediyoruz yani arduino'ya G, ileri yönde;sola doğru gidecek şekilde
+                            // motorları çalıştır komutu gönderiyoruz
                             break;
                         case Ri:
-                            t.setText("Forward Right");
-                            queue.put("I");
-                            Log.d(TAG, "forward right");
+                            t.setText("Forward Right");//ekrana ileri yönde sağa gidildiğini bastırıyoruz.
+                            queue.put("I");//kuyruğa I put ediyoruz yani arduino'ya I, ileri yönde;sağa doğru gidecek şekilde
+                            // motorları çalıştır komutu gönderiyoruz
                             break;
                     }
                 } else {
-                    if (curState[0] == B) {
-                        switch(curState[1]) {
+                    if (curState[0] == B) {//eğer curState ilk eleman geri ise
+                        switch(curState[1]) {//sağ sol rotasyonunu kontrol ediyoruz
                             case S:
-                                t.setText("Moving Backward");
-                                queue.put(speedStr);
-                                queue.put("B");
-                                Log.d(TAG, "backward");
+                                t.setText("Moving Backward");//ekrana geri gidildiğini bastırıyoruz.
+                                queue.put(speedStr);//geri yönde bir hız olacağı için o anki hızımız ne seçildi ise onu da kuyruğa put ediyoruz
+                                queue.put("B");//kuyruğa B put ediyoruz yani arduino'ya B, geri yönde motorları çalıştır komutu gönderiyoruz
                                 break;
                             case L:
-                                t.setText("Backward Left");
-                                queue.put("H");
-                                Log.d(TAG, "backward left");
+                                t.setText("Backward Left");//ekrana geri yönde sola gidildiğini bastırıyoruz.
+                                queue.put("H");//kuyruğa H put ediyoruz yani arduino'ya H, geri yönde;sola doğru gidecek şekilde
+                                // motorları çalıştır komutu gönderiyoruz
                                 break;
                             case Ri:
                                 t.setText("Backward Right");
-                                queue.put("J");
-
-                                Log.d(TAG, "backward right");
+                                queue.put("J");//kuyruğa J put ediyoruz yani arduino'ya J, geri yönde;sağa doğru gidecek şekilde
+                                // motorları çalıştır komutu gönderiyoruz
                                 break;
                         }
                     }
                 }
             }
+
+            /*
+            * Diğer hata yönetimi bloklarında da bahsettiğimiz üzere BlockedQueue yapısını multithreadingte
+            * kullandığımızdan olası bir Interrupt durumuna karşı fırlatılacak exception'ı handle etmek zorunda olduğumuzdan
+            * try/catch yapısını kullanıyoruz
+            * */
         } catch(InterruptedException e) {
             e.printStackTrace();
         }

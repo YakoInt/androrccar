@@ -15,9 +15,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 
-public class BluetoothTerminal implements Runnable {
+public class BluetoothTerminal implements Runnable {//farklı bir thread'de çalışacağı için Runnable'ı implement ediyoruz
 
-    private BluetoothAdapter mBluetoothAdapter = null;
     private boolean connected = false;
     private BluetoothSocket mmSocket;
     private BluetoothDevice mmDevice = null;
@@ -26,7 +25,6 @@ public class BluetoothTerminal implements Runnable {
     private boolean disconnect = false;
     private TextView t;
 
-    private String TAG = "Bluetooth thread";
 
     public BluetoothTerminal(BlockingQueue<String> queue, Activity parentActivity,
                              BluetoothDevice chosenDevice, TextView t, boolean disconnect) {
@@ -39,38 +37,32 @@ public class BluetoothTerminal implements Runnable {
 
     @Override
     public void run() {
-        Log.e(TAG, "HERE AGAIN+++++++++++++++++++++++++++ " + (mmDevice != null));
         String msg;
         disconnect = false;
 
-        // Get local Bluetooth adapter
-        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-        //UUID of the application- can be anything, but must match in both ends of the socket
+
+        //HC-06 modülün UUID'sini tanımlıyoruz bunun dışındaki cihazlara uygulama üzerinden bağlantı fail olacak
         UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
 
         try {
             if (mmDevice != null) {
-                Log.e(TAG, mmDevice.getName());
                 mmSocket = mmDevice.createRfcommSocketToServiceRecord(uuid);
 
                 if (!mmSocket.isConnected()){
-                    Log.e(TAG, "not connected");
                     mmSocket.connect();
                     parentActivity.runOnUiThread(new Runnable() {
                         public void run() {
                             t.setText("Connected");
                         }
                     });
-                    Log.e(TAG, "connected");
                     connected = true;
                 }
 
                 while(connected) {
                     try {
                         if (disconnect) {
-                            Log.e(TAG, "DISCONNECTINGGGGG ");
                             mmSocket.close();
                             connected = false;
                         }
