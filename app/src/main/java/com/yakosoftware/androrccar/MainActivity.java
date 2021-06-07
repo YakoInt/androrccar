@@ -321,7 +321,7 @@ public class MainActivity extends AppCompatActivity {
 //Connect butonunun listener'ı tanımlanıyor
         retry.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-            if (!bt.isConnected()) {//eper bağlantı sağlanamamışsa
+            if (!bt.isConnected()) {//eğer bağlantı sağlanamamışsa
                 t.setText("Retrying...");//ekrandaki textimiz bağlanana kadar Retrying olarak değiştiriliyor
                 // bağlandığında bt thread'inde Conected olarak güncellenecek
                 disconnect = false;//bağlanırken disconnected false ediliyor

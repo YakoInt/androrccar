@@ -26,8 +26,9 @@ public class BluetoothTerminal implements Runnable {//farklı bir thread'de çal
     private TextView t;
 
 
-    public BluetoothTerminal(BlockingQueue<String> queue, Activity parentActivity,
+    public BluetoothTerminal(BlockingQueue<String> queue, Activity parentActivity,//BluetoothTerminal'in Constructor'u
                              BluetoothDevice chosenDevice, TextView t, boolean disconnect) {
+        //Bluetooth terminalinin değişkenleri MainActivity'den aldığımız değişkenlerle assign ediliyor
         this.queue = queue;
         this.parentActivity = parentActivity;
         this.mmDevice = chosenDevice;
@@ -36,9 +37,10 @@ public class BluetoothTerminal implements Runnable {//farklı bir thread'de çal
     }
 
     @Override
-    public void run() {
-        String msg;
-        disconnect = false;
+    public void run() {//Main Thread'den farklı bir thread'de çalışacağı için Runnable interface'inden implement ettiğimiz
+        //run metodunda Seri port işlemleri gerçekleşiyor
+        String msg;//seri porta yollanacak mesaj için string
+        disconnect = false;//Bluetooth aygıtının bağlantı durumu
 
 
 
@@ -46,40 +48,40 @@ public class BluetoothTerminal implements Runnable {//farklı bir thread'de çal
         UUID uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
 
-        try {
-            if (mmDevice != null) {
-                mmSocket = mmDevice.createRfcommSocketToServiceRecord(uuid);
+        try {//Socket yapısında IO işlemleri yapacağımız için IOException'u handle etmek zorundayız
+            if (mmDevice != null) {//eğer bluetooth aygıtı seçilip bağlantı gerçekleştiyse burası null olmayacak
+                mmSocket = mmDevice.createRfcommSocketToServiceRecord(uuid);//aygıtımızdan bir socket oluşturuyoruz
 
-                if (!mmSocket.isConnected()){
-                    mmSocket.connect();
-                    parentActivity.runOnUiThread(new Runnable() {
+                if (!mmSocket.isConnected()){//socket'in bağlı olup olmadığı kontrol ediliyor
+                    mmSocket.connect();//sockete bağlanılıyor
+                    parentActivity.runOnUiThread(new Runnable() {//main activity'nin ui thread'inde değişiklik yapmak için ui threadinde çalıştırılıyor
                         public void run() {
-                            t.setText("Connected");
+                            t.setText("Connected");//ui'daki text Connected olarak değiştiriliyor
                         }
                     });
-                    connected = true;
+                    connected = true;//connected boolean'i true olarak güncelleniyor
                 }
 
-                while(connected) {
+                while(connected) {//aygıta connect olunduğu sürece keisntisiz veri akışı için sonsuz döngü çalışıyor
                     try {
-                        if (disconnect) {
-                            mmSocket.close();
-                            connected = false;
+                        if (disconnect) {//disconnect true olursa
+                            mmSocket.close();//socket bağlantısı kapatılıyor
+                            connected = false;//connected false olarak değiştiriliyor
                         }
-                        msg = (String) queue.take();
-                        sendBtMsg(msg);
-                    } catch (InterruptedException e) {
-                        connected = false;
-                        e.printStackTrace();
+                        msg = (String) queue.take();//ana thread'den kuyruğa eklenen veri take ediliyor ve mesaja atanıyor
+                        sendBtMsg(msg);//sendBtMsg metodu aracılığıyla mesaj bluetooth üzerinden arduino'nun seri portuna gönderiliyor
+                    } catch (InterruptedException e) {//hata olması durumunda yakalanıyor
+                        connected = false;//connected false ediliyor
+                        e.printStackTrace();//hata mesajı konsola bastırılıyor
                     }
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            connected = false;
+        } catch (IOException e) {//IO ile ilgili bir hata olması durumunda
+            e.printStackTrace();//hata mesajı konsola bastırılıyor
+            connected = false;//connected yine false ediliyor
             parentActivity.runOnUiThread(new Runnable() {
-                public void run() {
-                    Toast.makeText(parentActivity, "Connection failed",
+                public void run() {//ui threadine katılınıyor
+                    Toast.makeText(parentActivity, "Connection failed",//connection failed şeklinde bir toast mesajı bastırılıyor
                             Toast.LENGTH_LONG).show();
                 }
             });
