@@ -88,26 +88,26 @@ public class BluetoothTerminal implements Runnable {//farklı bir thread'de çal
         }
     }
 
-    public void sendBtMsg(String msg) {
+    public void sendBtMsg(String msg) {//bluetooth dan seriale veri göndermek için yazdığımız method
         OutputStream mmOutputStream;
         try {
-            mmOutputStream = mmSocket.getOutputStream();
-            mmOutputStream.write(msg.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-            connected = false;
+            mmOutputStream = mmSocket.getOutputStream();//socket'in output stream'i alınıyor
+            mmOutputStream.write(msg.getBytes());//output stream'a veri yazılarak hc-06'ya gönderilmiş oluyor dolayısı ile arduinoya gönderiliyor
+        } catch (IOException e) {//hata yakalanırsa
+            e.printStackTrace();//hata mesajı consola yazdırılıyor
+            connected = false;//connected false olarak güncelleniyor
         }
     }
     public void setDisconnect(boolean dc) {
         disconnect = dc;
-    }
+    }//disconnected değişkeni setter'ı
 
     public boolean isConnected() {
         return connected;
-    }
+    }//connected değişkeni getter'ı
 
     public void setMmDevice(BluetoothDevice mm) {
         mmDevice = mm;
-    }
+    }//mmDevice değişkeni setter'ı
 
 }
